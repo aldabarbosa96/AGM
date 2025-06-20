@@ -74,18 +74,13 @@ public class TreeLayoutEngine {
         placeSiblingRoots();
     }
 
-    /* ─────────────────────  Cálculo recursivo  ───────────────────────── */
-
-    /**
-     * Devuelve la anchura necesaria para el sub-árbol cuyo nodo raíz es {@code n}.
-     * Incluye (si procede) el bloque conyugal n + pareja.
-     */
     private float computeWidth(NodeView n, Map<String, Float> map) {
 
         // anchura del propio nodo o del bloque nodo+pareja
-        boolean isLeftOfCouple = getSpouse(n) != null && n.getPerson().getId().compareTo(getSpouse(n).getPerson().getId()) < 0;
-
-        float ownBlock = isLeftOfCouple ? (NODE_W * 2 + PARTNER_GAP) : NODE_W;
+        float ownBlock = NODE_W;
+        if (getSpouse(n) != null) {
+            ownBlock = NODE_W * 2 + PARTNER_GAP;
+        }
 
         // hijos directos
         List<NodeView> children = getChildren(n);
