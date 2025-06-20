@@ -1,86 +1,111 @@
 package com.agm.model;
 
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class FamilyTree {
+
+    /* ───────── datos ───────── */
     private final Map<String, Person> people = new HashMap<>();
     private final List<Relation> relations = new ArrayList<>();
+
+    /* ───────── CRUD de personas ───────── */
 
     public void addPerson(Person p) {
         people.put(p.getId(), p);
     }
 
-    public void addRelation(String fromId, String toId, RelationType type) {
-        relations.add(new Relation(fromId, toId, type));
-    }
-
-    public void addParentChild(String parentId, String childId) {
-        addRelation(parentId, childId, RelationType.PARENT);
-    }
-
-
     public Optional<Person> getPerson(String id) {
         return Optional.ofNullable(people.get(id));
     }
 
-    // Sigue devolviendo la vista inmutable
-    public List<Relation> getRelations() {
-        return Collections.unmodifiableList(relations);
-    }
-
-    // Nuevo método para modificar la lista interna
-    public List<Relation> getRelationsMutable() {
-        return relations;
-    }
-
-    // Nuevo método para modificar el mapa interno
     public Map<String, Person> getPeople() {
         return people;
     }
 
+    /* ───────── acceso a relaciones ───────── */
+
+    /**
+     * Vista inmutable para la UI
+     */
+    public List<Relation> getRelations() {
+        return Collections.unmodifiableList(relations);
+    }
+
+    /**
+     * Vista mutable (solo para persistencia)
+     */
+    public List<Relation> getRelationsMutable() {
+        return relations;
+    }
+
+    /* ───────── consultas ───────── */
+
     public Stream<Person> parentsOf(String id) {
-        return relations.stream().filter(r -> r.getType() == RelationType.PARENT && r.getToId().equals(id)).map(r -> people.get(r.getFromId()));
+        return relations.stream().filter(r -> r.getType() == RelationType.PARENT && r.getToId().equals(id)).map(r -> people.get(r.getFromId())).filter(Objects::nonNull);
     }
 
     public Stream<Person> childrenOf(String id) {
-        return relations.stream().filter(r -> r.getType() == RelationType.PARENT && r.getFromId().equals(id)).map(r -> people.get(r.getToId()));
+        return relations.stream().filter(r -> r.getType() == RelationType.PARENT && r.getFromId().equals(id)).map(r -> people.get(r.getToId())).filter(Objects::nonNull);
     }
 
     public Stream<Person> spousesOf(String id) {
-        return relations.stream().filter(r -> r.getType() == RelationType.SPOUSE && (r.getFromId().equals(id) || r.getToId().equals(id))).map(r -> people.get(r.getFromId().equals(id) ? r.getToId() : r.getFromId()));
+        return relations.stream().filter(r -> r.getType() == RelationType.SPOUSE && (r.getFromId().equals(id) || r.getToId().equals(id))).map(r -> people.get(r.getFromId().equals(id) ? r.getToId() : r.getFromId())).filter(Objects::nonNull);
     }
 
-    public void addRelationSafe(String from, String to, RelationType t) {
-        if (t == RelationType.PARENT && createsCycle(from, to))
-            throw new IllegalArgumentException("Ciclo genealógico");
-        relations.add(new Relation(from, to, t));
+    public Stream<Person> siblingsOf(String id) {
+        return relations.stream().filter(r -> r.getType() == RelationType.SIBLING && r.getFromId().equals(id)).map(r -> people.get(r.getToId())).filter(Objects::nonNull);
+    }
+
+    /* ───────── creación de vínculos ───────── */
+
+    /**
+     * Añade un vínculo padre→hijo evitando ciclos y duplicados
+     */
+    public void addParentChild(String parentId, String childId) {
+        if (createsCycle(parentId, childId))
+            throw new IllegalArgumentException("Crearía un ciclo genealógico");
+        link(parentId, childId, RelationType.PARENT);
+    }
+
+    /**
+     * Añade matrimonio bidireccional evitando duplicados
+     */
+    public void addSpouse(String a, String b) {
+        link(a, b, RelationType.SPOUSE);
+        link(b, a, RelationType.SPOUSE);
+    }
+
+    /**
+     * Añade hermandad bidireccional, hereda padres y
+     * hace transitiva la relación (A-B, B-C ⇒ A-C).
+     */
+    public void addSibling(String a, String b) {
+        // 1 · vínculo directo
+        link(a, b, RelationType.SIBLING);
+        link(b, a, RelationType.SIBLING);
+
+        // 2 · heredar padres
+        parentsOf(a).map(Person::getId).forEach(p -> addParentChild(p, b));
+        parentsOf(b).map(Person::getId).forEach(p -> addParentChild(p, a));
+
+        // 3 · transitividad
+        siblingsOf(a).map(Person::getId).forEach(s -> link(s, b, RelationType.SIBLING));
+        siblingsOf(b).map(Person::getId).forEach(s -> link(s, a, RelationType.SIBLING));
+    }
+
+    /* ───────── utilidades internas ───────── */
+
+    private boolean hasRelation(String from, String to, RelationType t) {
+        return relations.stream().anyMatch(r -> r.getType() == t && r.getFromId().equals(from) && r.getToId().equals(to));
+    }
+
+    private void link(String from, String to, RelationType t) {
+        if (!hasRelation(from, to, t)) relations.add(new Relation(from, to, t));
     }
 
     private boolean createsCycle(String parent, String child) {
         if (parent.equals(child)) return true;
         return childrenOf(child).anyMatch(p -> createsCycle(parent, p.getId()));
     }
-
-    private boolean relationExists(String from, String to, RelationType t) {
-        return relations.stream().anyMatch(r -> r.getType() == t && r.getFromId().equals(from) && r.getToId().equals(to));
-    }
-
-    public void addSpouse(String a, String b) {
-        // Si ya está creado A<->B, no hacemos nada
-        if (relationExists(a, b, RelationType.SPOUSE) || relationExists(b, a, RelationType.SPOUSE))
-            return;
-        addRelationSafe(a, b, RelationType.SPOUSE);
-        addRelationSafe(b, a, RelationType.SPOUSE);
-    }
-
-    public void addSibling(String a, String b) {
-        if (relationExists(a, b, RelationType.SIBLING) || relationExists(b, a, RelationType.SIBLING))
-            return;
-        addRelationSafe(a, b, RelationType.SIBLING);
-        addRelationSafe(b, a, RelationType.SIBLING);
-    }
-
-
 }

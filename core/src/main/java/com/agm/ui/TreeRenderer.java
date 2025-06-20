@@ -1,4 +1,3 @@
-// core/src/main/java/com/agm/ui/TreeRenderer.java
 package com.agm.ui;
 
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;

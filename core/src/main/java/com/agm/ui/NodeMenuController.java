@@ -160,18 +160,11 @@ public class NodeMenuController {
                         tree.addSpouse(base.getPerson().getId(), np.getId());
 
                         /* 2 · el nuevo cónyuge adopta todos los hijos ya existentes */
-                        tree.childrenOf(base.getPerson().getId())
-                            .map(com.agm.model.Person::getId)
-                            .forEach(childId -> tree.addParentChild(np.getId(), childId));
+                        tree.childrenOf(base.getPerson().getId()).map(com.agm.model.Person::getId).forEach(childId -> tree.addParentChild(np.getId(), childId));
                         break;
 
                     case SIBLING:
                         tree.addSibling(base.getPerson().getId(), np.getId());
-
-                        /* copia los padres del hermano original al nuevo */
-                        tree.parentsOf(base.getPerson().getId())
-                            .map(com.agm.model.Person::getId)
-                            .forEach(parentId -> tree.addParentChild(parentId, np.getId()));
                         break;
                 }
 
