@@ -59,7 +59,7 @@ public class EditorScreen extends AbstractScreen {
         persistence.loadOrCreateRoot();
 
         nodes.clear();
-        for (Person p : tree.getPeople().values()) {          // ← sin forEach()
+        for (Person p : tree.getPeople().values()) {
             nodes.add(new NodeView(p, 0, 0));
         }
 
@@ -71,19 +71,21 @@ public class EditorScreen extends AbstractScreen {
         renderer = new TreeRenderer(stage);
 
         /* 5. Input + menú */
-        menuController = new NodeMenuController(stage, tree, nodes, skin, new Runnable() {
-            @Override
-            public void run() {
-                layoutEngine.layoutAll();
-            }
-        });
+        menuController = new NodeMenuController(stage, tree, nodes, skin,
+            new Runnable() { @Override public void run() { layoutEngine.layoutAll(); } });
 
         inputController = new TreeInputController(stage, cam, nodes);
-        inputController.setup(node -> {               // ← lambda Consumer<NodeView>
-            selectedNode = node;
-            menuController.show(node);
+        inputController.setup(node -> {
+            if (node != null) {            // clic sobre un nodo
+                selectedNode = node;
+                menuController.show(node);
+            } else {                       // clic en zona vacía
+                selectedNode = null;
+                menuController.close();
+            }
         });
     }
+
 
     @Override
     public void render(float delta) {

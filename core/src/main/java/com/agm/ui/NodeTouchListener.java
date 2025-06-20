@@ -16,10 +16,7 @@ public class NodeTouchListener extends InputAdapter {
     private final List<NodeView> nodes;
     private final Consumer<NodeView> callback;
 
-    public NodeTouchListener(Stage stage,
-                             OrthographicCamera cam,
-                             List<NodeView> nodes,
-                             Consumer<NodeView> callback) {
+    public NodeTouchListener(Stage stage, OrthographicCamera cam, List<NodeView> nodes, Consumer<NodeView> callback) {
         this.stage = stage;
         this.cam = cam;
         this.nodes = nodes;
@@ -30,13 +27,21 @@ public class NodeTouchListener extends InputAdapter {
     public boolean touchDown(int sx, int sy, int pointer, int button) {
         Vector3 wp = new Vector3(sx, sy, 0);
         stage.getViewport().unproject(wp);
+
+        NodeView hit = null;
         for (int i = nodes.size() - 1; i >= 0; i--) {
             NodeView nv = nodes.get(i);
             if (nv.contains(wp.x, wp.y)) {
-                callback.accept(nv);
-                return true;
+                hit = nv;
+                break;
             }
         }
-        return false;
+
+        /* Notificamos siempre: si no hay nodo devolvemos null */
+        callback.accept(hit);
+
+        /* Solo consumimos el evento cuando realmente se pulsó un nodo */
+        return hit != null;
     }
+
 }
