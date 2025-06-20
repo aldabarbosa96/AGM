@@ -144,6 +144,9 @@ public class TreeLayoutEngine {
 
     /* ───────── Hermanos sin padre: separación larga en la misma fila ── */
 
+    // ──────────────────────────────────────────────────────────────
+// 3. Sustituye COMPLETAMENTE este método
+// ──────────────────────────────────────────────────────────────
     private void placeSiblingRoots() {
         Set<String> done = new HashSet<>();
 
@@ -159,10 +162,17 @@ public class TreeLayoutEngine {
             NodeView b = findNode(bId);
             if (a == null || b == null) continue;
 
+            // referencia: extremo derecho del bloque “a + pareja”
             float anchor = rightmostOfCouple(a);
-            b.setPosition(anchor + SIBLING_GAP, a.getY());
+
+            // nueva posición objetivo para b
+            float targetX = anchor + SIBLING_GAP;
+            float dx = targetX - b.getX();
+
+            shiftSubtree(b, dx);
         }
     }
+
 
     /* ────────────────────────  Helpers  ─────────────────────────────── */
 
@@ -180,14 +190,38 @@ public class TreeLayoutEngine {
     /**
      * Raíces = nodos que nunca aparecen como hijo en PARENT.
      */
+    // ──────────────────────────────────────────────────────────────
+// 1. Sustituye COMPLETAMENTE este método
+// ──────────────────────────────────────────────────────────────
     private List<NodeView> findRoots() {
-        Set<String> childs = tree.getRelations().stream().filter(r -> r.getType() == RelationType.PARENT).map(Relation::getToId).collect(Collectors.toSet());
+        // hijos directos de alguien → NO son raíz
+        Set<String> childIds = tree.getRelations().stream()
+            .filter(r -> r.getType() == RelationType.PARENT)
+            .map(Relation::getToId)
+            .collect(Collectors.toSet());
+
+        Set<String> skip = new HashSet<>();
+        for (Relation r : tree.getRelations()) {
+            if (r.getType() != RelationType.SPOUSE) continue;
+
+            String a = r.getFromId(), b = r.getToId();
+            boolean aIsRoot = !childIds.contains(a);
+            boolean bIsRoot = !childIds.contains(b);
+            if (aIsRoot && bIsRoot) {
+                if (a.compareTo(b) < 0) skip.add(b);   // conserva el “menor”
+                else                     skip.add(a);
+            }
+        }
 
         List<NodeView> roots = new ArrayList<>();
-        for (NodeView n : nodes)
-            if (!childs.contains(n.getPerson().getId())) roots.add(n);
+        for (NodeView n : nodes) {
+            String id = n.getPerson().getId();
+            if (!childIds.contains(id) && !skip.contains(id))
+                roots.add(n);
+        }
         return roots;
     }
+
 
     private boolean haveCommonParent(String a, String b) {
         for (Relation r : tree.getRelations())
@@ -232,4 +266,17 @@ public class TreeLayoutEngine {
             if (nv.getPerson().getId().equals(id)) return nv;
         return null;
     }
+
+    private void shiftSubtree(NodeView n, float dx) {
+        // mueve el propio nodo
+        n.setPosition(n.getX() + dx, n.getY());
+
+        // mueve al cónyuge si existe
+        NodeView sp = getSpouse(n);
+        if (sp != null) sp.setPosition(sp.getX() + dx, sp.getY());
+
+        // mueve recursivamente a los hijos
+        for (NodeView c : getChildren(n)) shiftSubtree(c, dx);
+    }
+
 }
