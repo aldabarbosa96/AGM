@@ -25,9 +25,11 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.ui.Dialog;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Json;
 
@@ -224,16 +226,36 @@ public class EditorScreen extends AbstractScreen {
             @Override
             public void clicked(InputEvent e, float x, float y) {
                 Person p = node.getPerson();
-                Dialog info = new Dialog("Info de " + p.getFirstName(), skin);
-                info.text("Nombre:     " + p.getFirstName() + " " + p.getLastName());
-                info.row();
-                info.text("Nacimiento: " + p.getBirthDate());
-                info.row();
-                info.text("Defunción:  " + (p.getDeathDate() != null ? p.getDeathDate() : "—"));
-                info.row();
-                info.text("Nota:       " + (p.getQuote().isEmpty() ? "—" : "\"" + p.getQuote() + "\""));
-                info.button("Cerrar");
-                info.show(stage);
+
+                // Creamos un diálogo personalizado
+                Dialog info = new Dialog("Info de " + p.getFirstName(), skin) {
+                    @Override
+                    protected void result(Object object) {
+                        // Se invoca al pulsar un botón: hide() cierra el diálogo
+                        hide();
+                    }
+                };
+
+                // Ajustes de la tabla de contenido: anchos, padding…
+                info.getContentTable().pad(20).defaults().pad(10).left().width(300);
+
+                // Añadimos cada dato como una Label propia, fila a fila
+                info.getContentTable().add(new Label("Nombre:    " + p.getFirstName() + " " + p.getLastName(), skin)).row();
+                info.getContentTable().add(new Label("Nacimiento: " + p.getBirthDate(), skin)).row();
+                info.getContentTable().add(new Label("Defunción:  " + (p.getDeathDate() != null ? p.getDeathDate() : "—"), skin)).row();
+                info.getContentTable().add(new Label("Nota:       " + (p.getQuote().isEmpty() ? "—" : "\"" + p.getQuote() + "\""), skin)).row();
+
+                // Botón Cerrar que envía `true` a result(...)
+                info.button("Cerrar", true).pad(15);
+
+                // Permitir cerrar con la tecla ESCAPE
+                info.key(Input.Keys.ESCAPE, true);
+
+                // Mostrar y centrar en pantalla
+                info.show(stage).setPosition(
+                    (stage.getViewport().getWorldWidth() - info.getWidth())  / 2,
+                    (stage.getViewport().getWorldHeight() - info.getHeight())/ 2
+                );
             }
         });
 
@@ -430,32 +452,43 @@ public class EditorScreen extends AbstractScreen {
         layoutSubtree(root, startX, startY, widthMap);
     }
 
-    // ─── Skin básico ──────────────────────────────────────────────────────────
-
     private Skin createBasicSkin() {
         Skin skin = new Skin();
 
-        // Fuente por defecto
+        // 1) Fuente por defecto
         BitmapFont f = new BitmapFont();
         f.getData().setScale(1.2f);
         skin.add("default-font", f);
 
-        // Textura blanca
+        // 2) Textura blanca
         Pixmap pix = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         pix.setColor(Color.WHITE);
         pix.fill();
         skin.add("white", new Texture(pix));
         pix.dispose();
 
-        // Botones pequeños
+        // 3) LabelStyle por defecto (para Dialog.text)
+        Label.LabelStyle labelStyle = new Label.LabelStyle();
+        labelStyle.font = f;
+        labelStyle.fontColor = Color.WHITE;
+        skin.add("default", labelStyle, Label.LabelStyle.class);
+
+        // 4) WindowStyle por defecto (para el Dialog)
+        Window.WindowStyle windowStyle = new Window.WindowStyle();
+        windowStyle.titleFont = f;
+        windowStyle.titleFontColor = Color.WHITE;
+        windowStyle.background = skin.newDrawable("white", Color.DARK_GRAY);
+        skin.add("default", windowStyle, Window.WindowStyle.class);
+
+        // 5) TextButtonStyle “default”
         TextButton.TextButtonStyle small = new TextButton.TextButtonStyle();
         small.font = f;
         small.up = skin.newDrawable("white", Color.DARK_GRAY);
         small.down = skin.newDrawable("white", Color.GRAY);
         small.over = skin.newDrawable("white", Color.LIGHT_GRAY);
-        skin.add("default", small);
+        skin.add("default", small, TextButton.TextButtonStyle.class);
 
-        // Botones grandes
+        // 6) TextButtonStyle “big”
         BitmapFont bigF = new BitmapFont();
         bigF.getData().setScale(1.5f);
         skin.add("big-font", bigF);
@@ -464,10 +497,12 @@ public class EditorScreen extends AbstractScreen {
         big.up = skin.newDrawable("white", Color.DARK_GRAY);
         big.down = skin.newDrawable("white", Color.GRAY);
         big.over = skin.newDrawable("white", Color.LIGHT_GRAY);
-        skin.add("big", big);
+        skin.add("big", big, TextButton.TextButtonStyle.class);
 
         return skin;
     }
+
+
 
     /**
      * Guarda el árbol en familytree.json (local).
