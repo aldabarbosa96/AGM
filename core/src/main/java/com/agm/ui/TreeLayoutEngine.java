@@ -1,4 +1,3 @@
-// core/src/main/java/com/agm/ui/TreeLayoutEngine.java
 package com.agm.ui;
 
 import com.agm.model.FamilyTree;
@@ -11,23 +10,21 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Motor de distribución de nodos:
+ * Motor de distribución del árbol genealógico.
  * <p>
- * 1. Encuentra las raíces (sin padre) y centra cada sub-árbol.
- * 2. Distribuye recursivamente de arriba abajo.
- * 3. Ajusta parejas (muy cerca) y hermanos sin padre común (más lejos).
- * <p>
- * ✱ La anchura de un “bloque conyugal” (nodo + pareja) se integra ahora en los
- * cálculos, evitando solapes entre pareja y hermanos.
+ * • El nodo que se creó primero dentro de la pareja (el “ancla”)
+ * siempre queda a la izquierda y es el único que reparte hijos.
+ * • La anchura de cada sub-árbol se calcula recursivamente para
+ * centrar parejas e hijos y evitar solapes.
  */
 public class TreeLayoutEngine {
 
-    /* ── constantes de geometría ───────────────────────────────────────── */
-    private static final float NODE_W = NodeView.RADIUS * 2 + 50f;   // ancho de un nodo
-    private static final float PARTNER_GAP = NodeView.RADIUS * 1.5f;      // hueco entre cónyuges
-    private static final float SIBLING_GAP = NodeView.RADIUS * 3f;        // hueco entre hermanos sin padre
+    /* ────────── constantes geométricas ────────── */
+    private static final float NODE_W = NodeView.RADIUS * 2 + 50f;
+    private static final float PARTNER_GAP = NodeView.RADIUS * 1.5f;
+    private static final float SIBLING_GAP = NodeView.RADIUS * 3f;
 
-    /* ------------------------------------------------------------------- */
+    /* ────────── estado ────────── */
     private final FamilyTree tree;
     private final List<NodeView> nodes;
     private final Stage stage;
@@ -38,25 +35,22 @@ public class TreeLayoutEngine {
         this.stage = stage;
     }
 
-    /* ─────────────────────────  API pública  ─────────────────────────── */
+    /* ───────────────────── layout completo ───────────────────── */
 
     public void layoutAll() {
         if (nodes.isEmpty()) return;
 
-        /* 1 ─ raíces posibles (si no hubiese, usamos el primero) */
+        /* 1 · raíces (si ambos cónyuges lo son, sólo el “ancla”) */
         List<NodeView> roots = findRoots();
         if (roots.isEmpty()) roots = Collections.singletonList(nodes.get(0));
 
-        /* 2 ─ anchura de cada sub-árbol (incluye parejas) */
+        /* 2 · anchura recursiva de cada sub-árbol */
         Map<String, Float> wmap = new HashMap<>();
-        float totalW = 0f, gapRoots = NODE_W;                 // hueco entre árboles raíz
-
-        for (NodeView r : roots) {
-            totalW += computeWidth(r, wmap);
-        }
+        float totalW = 0f, gapRoots = NODE_W;
+        for (NodeView r : roots) totalW += computeWidth(r, wmap);
         totalW += gapRoots * (roots.size() - 1);
 
-        /* 3 ─ distribuir raíces centradas */
+        /* 3 · colocar raíces centradas en la pantalla */
         float vw = stage.getViewport().getWorldWidth();
         float vh = stage.getViewport().getWorldHeight();
         float currentX = vw / 2f - totalW / 2f;
@@ -69,47 +63,48 @@ public class TreeLayoutEngine {
             currentX += w + gapRoots;
         }
 
+        /* 4 · separar hermanos que no comparten padres */
         placeSiblingRoots();
     }
 
-    private float computeWidth(NodeView n, Map<String, Float> map) {
+    /* ───────────────────── cálculo de anchuras ───────────────────── */
 
-        // anchura del propio nodo o del bloque nodo+pareja
-        float ownBlock = NODE_W;
-        if (getSpouse(n) != null) {
-            ownBlock = NODE_W * 2 + PARTNER_GAP;
+    private float computeWidth(NodeView n, Map<String, Float> wmap) {
+        float own = NODE_W;
+        if (getSpouse(n) != null) own = NODE_W * 2 + PARTNER_GAP;
+
+        List<NodeView> ch = getChildren(n);
+        if (ch.isEmpty()) {
+            wmap.put(n.getPerson().getId(), own);
+            return own;
         }
 
-        // hijos directos
-        List<NodeView> children = getChildren(n);
-        if (children.isEmpty()) {
-            map.put(n.getPerson().getId(), ownBlock);
-            return ownBlock;
-        }
-
-        // anchura total de los hijos
         float kidsW = 0f;
-        for (NodeView c : children) kidsW += computeWidth(c, map);
+        for (NodeView c : ch) kidsW += computeWidth(c, wmap);
 
-        float finalW = Math.max(ownBlock, kidsW);
-        map.put(n.getPerson().getId(), finalW);
+        float finalW = Math.max(own, kidsW);
+        wmap.put(n.getPerson().getId(), finalW);
         return finalW;
     }
 
-    private void layoutSubtree(NodeView n, float x, float y, Map<String, Float> wmap) {
-        NodeView spouse = getSpouse(n);
+    /* ───────────────────── distribución recursiva ───────────────────── */
 
-        // 1) Posicionamos la pareja (o el nodo solo) como antes
-        float blockWidth = wmap.get(n.getPerson().getId());
+    private void layoutSubtree(NodeView n, float x, float y, Map<String, Float> wmap) {
+
+        NodeView spouse = getSpouse(n);
+        boolean anchor = isAnchor(n);          // “ancla” = creado antes
+
+        /* 1 · colocar (n + pareja) */
+        float blockW = wmap.get(n.getPerson().getId());
         if (spouse != null) {
-            float half = blockWidth / 2f;
+            float half = blockW / 2f;
             float xLeft = x - half + NODE_W / 2f;
             float xRight = x + half - NODE_W / 2f;
-            // decidimos quién es “izquierda” y “derecha” por orden de ID
-            if (n.getPerson().getId().compareTo(spouse.getPerson().getId()) < 0) {
+
+            if (anchor) {                      // n a la izquierda
                 n.setPosition(xLeft, y);
                 spouse.setPosition(xRight, y);
-            } else {
+            } else {                           // spouse a la izquierda
                 spouse.setPosition(xLeft, y);
                 n.setPosition(xRight, y);
             }
@@ -117,19 +112,17 @@ public class TreeLayoutEngine {
             n.setPosition(x, y);
         }
 
-        // 2) Solo el “primer” cónyuge (ID menor), o nodos sin pareja, reparten hijos
-        if (spouse != null && n.getPerson().getId().compareTo(spouse.getPerson().getId()) > 0) {
-            // este es el “segundo” de la pareja: ya hemos repartido hijos con el otro
-            return;
-        }
+        /* 2 · sólo el ancla reparte a los hijos */
+        if (spouse != null && !anchor) return;
 
-        // 3) Distribuimos hijos TODOS a partir de x (que es el centro del bloque pareja)
+        /* 3 · distribuir hijos centrados bajo la pareja */
         List<NodeView> children = getChildren(n);
         if (children.isEmpty()) return;
 
-        // anchura total ya calculada
-        float subtreeW = wmap.get(n.getPerson().getId());
-        float startX = x - subtreeW / 2f;
+        float kidsW = 0f;
+        for (NodeView c : children) kidsW += wmap.get(c.getPerson().getId());
+
+        float startX = x - kidsW / 2f;
         float vgap = NodeView.RADIUS * 2 + 100f;
 
         for (NodeView c : children) {
@@ -140,118 +133,85 @@ public class TreeLayoutEngine {
         }
     }
 
+    /* ───────────────────── ajuste de hermanos “sueltos” ───────────────────── */
 
-    // ──────────────────────────────────────────────────────────────
-// 3. Sustituye COMPLETAMENTE este método
-// ──────────────────────────────────────────────────────────────
     private void placeSiblingRoots() {
         Set<String> done = new HashSet<>();
-
         for (Relation r : tree.getRelations()) {
             if (r.getType() != RelationType.SIBLING) continue;
-
-            String aId = r.getFromId(), bId = r.getToId();
-            String key = aId.compareTo(bId) < 0 ? aId + ':' + bId : bId + ':' + aId;
-            if (done.contains(key) || haveCommonParent(aId, bId)) continue;
+            String a = r.getFromId(), b = r.getToId();
+            String key = a.compareTo(b) < 0 ? a + ':' + b : b + ':' + a;
+            if (done.contains(key) || haveCommonParent(a, b)) continue;
             done.add(key);
 
-            NodeView a = findNode(aId);
-            NodeView b = findNode(bId);
-            if (a == null || b == null) continue;
+            NodeView na = findNode(a), nb = findNode(b);
+            if (na == null || nb == null) continue;
 
-            // referencia: extremo derecho del bloque “a + pareja”
-            float anchor = rightmostOfCouple(a);
-
-            // nueva posición objetivo para b
-            float targetX = anchor + SIBLING_GAP;
-            float dx = targetX - b.getX();
-
-            shiftSubtree(b, dx);
+            float anchor = rightmostOfCouple(na);
+            float dx = (anchor + SIBLING_GAP) - nb.getX();
+            shiftSubtree(nb, dx);
         }
     }
 
+    /* ───────────────────── helpers ───────────────────── */
 
-    /* ────────────────────────  Helpers  ─────────────────────────────── */
+    /**
+     * Devuelve true si {@code n} es el miembro “ancla” de su pareja.
+     */
+    private boolean isAnchor(NodeView n) {
+        NodeView sp = getSpouse(n);
+        return sp == null || nodes.indexOf(n) < nodes.indexOf(sp);
+    }
 
-    private List<NodeView> getChildren(NodeView parent) {
-        List<NodeView> out = new ArrayList<>();
-        for (Relation r : tree.getRelations())
-            if (r.getType() == RelationType.PARENT && r.getFromId().equals(parent.getPerson().getId())) {
-
-                NodeView child = findNode(r.getToId());
-                if (child != null) out.add(child);
-            }
-        return out;
+    private List<NodeView> getChildren(NodeView p) {
+        return tree.getRelations().stream().filter(r -> r.getType() == RelationType.PARENT && r.getFromId().equals(p.getPerson().getId())).map(r -> findNode(r.getToId())).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     /**
-     * Raíces = nodos que nunca aparecen como hijo en PARENT.
+     * Raíces = nodos sin padre; si ambos cónyuges cumplen, conserva sólo al ancla.
      */
-    // ──────────────────────────────────────────────────────────────
-// 1. Sustituye COMPLETAMENTE este método
-// ──────────────────────────────────────────────────────────────
     private List<NodeView> findRoots() {
-        // hijos directos de alguien → NO son raíz
+
         Set<String> childIds = tree.getRelations().stream().filter(r -> r.getType() == RelationType.PARENT).map(Relation::getToId).collect(Collectors.toSet());
-
-        Set<String> skip = new HashSet<>();
-        for (Relation r : tree.getRelations()) {
-            if (r.getType() != RelationType.SPOUSE) continue;
-
-            String a = r.getFromId(), b = r.getToId();
-            boolean aIsRoot = !childIds.contains(a);
-            boolean bIsRoot = !childIds.contains(b);
-            if (aIsRoot && bIsRoot) {
-                if (a.compareTo(b) < 0) skip.add(b);   // conserva el “menor”
-                else skip.add(a);
-            }
-        }
 
         List<NodeView> roots = new ArrayList<>();
         for (NodeView n : nodes) {
             String id = n.getPerson().getId();
-            if (!childIds.contains(id) && !skip.contains(id)) roots.add(n);
+            if (childIds.contains(id)) continue;          // tiene padre
+
+            NodeView sp = getSpouse(n);
+            if (sp != null && !childIds.contains(sp.getPerson().getId())) {
+                if (!isAnchor(n)) continue;               // pareja pero no ancla
+            }
+            roots.add(n);
         }
         return roots;
     }
 
-
     private boolean haveCommonParent(String a, String b) {
-        for (Relation r : tree.getRelations())
-            if (r.getType() == RelationType.PARENT && isChildOf(r.getFromId(), a) && isChildOf(r.getFromId(), b))
-                return true;
-        return false;
+        return tree.getRelations().stream().anyMatch(r -> r.getType() == RelationType.PARENT && isChildOf(r.getFromId(), a) && isChildOf(r.getFromId(), b));
     }
 
     private boolean isChildOf(String p, String c) {
-        for (Relation r : tree.getRelations())
-            if (r.getType() == RelationType.PARENT && r.getFromId().equals(p) && r.getToId().equals(c))
-                return true;
-        return false;
+        return tree.getRelations().stream().anyMatch(r -> r.getType() == RelationType.PARENT && r.getFromId().equals(p) && r.getToId().equals(c));
     }
 
-    /**
-     * Devuelve el primer cónyuge encontrado o {@code null}.
-     */
     private NodeView getSpouse(NodeView n) {
         String id = n.getPerson().getId();
-        for (Relation r : tree.getRelations())
+        for (Relation r : tree.getRelations()) {
             if (r.getType() == RelationType.SPOUSE && (r.getFromId().equals(id) || r.getToId().equals(id))) {
-
                 String other = r.getFromId().equals(id) ? r.getToId() : r.getFromId();
                 return findNode(other);
             }
+        }
         return null;
     }
 
-    /**
-     * Extremo X del bloque (n + pareja(s) a su derecha).
-     */
     private float rightmostOfCouple(NodeView n) {
         float max = n.getX();
-        NodeView spouse = getSpouse(n);
-        if (spouse != null) max = Math.max(max, spouse.getX());
-        return max + NODE_W / 2f;   // borde derecho del bloque
+        NodeView sp = getSpouse(n);
+        if (sp != null) max = Math.max(max, sp.getX());
+        return max + NODE_W / 2f;
     }
 
     private NodeView findNode(String id) {
@@ -261,15 +221,9 @@ public class TreeLayoutEngine {
     }
 
     private void shiftSubtree(NodeView n, float dx) {
-        // mueve el propio nodo
         n.setPosition(n.getX() + dx, n.getY());
-
-        // mueve al cónyuge si existe
         NodeView sp = getSpouse(n);
         if (sp != null) sp.setPosition(sp.getX() + dx, sp.getY());
-
-        // mueve recursivamente a los hijos
         for (NodeView c : getChildren(n)) shiftSubtree(c, dx);
     }
-
 }

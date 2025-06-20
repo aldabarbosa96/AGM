@@ -44,9 +44,10 @@ public class TreeRenderer {
     }
 
     private void drawConnections(List<NodeView> nodes, List<Relation> relations) {
+
         shapes.begin(ShapeRenderer.ShapeType.Line);
 
-        // 1) Recogemos para cada hijo la lista de sus padres directos
+        /* 1 ─ hijo → lista de padres directos */
         Map<String, List<String>> childToParents = new HashMap<>();
         for (Relation r : relations) {
             if (r.getType() == RelationType.PARENT) {
@@ -54,10 +55,10 @@ public class TreeRenderer {
             }
         }
 
-        // 2) Ampliamos esa lista para que incluya SIEMPRE a los cónyuges de cada padre
+        /* 2 ─ ampliar con cónyuges de cada padre */
         for (Map.Entry<String, List<String>> e : new ArrayList<>(childToParents.entrySet())) {
             List<String> direct = e.getValue();
-            Set<String> extended = new TreeSet<>(direct);  // TreeSet para orden y unicidad
+            Set<String> extended = new TreeSet<>(direct);
             for (String pid : direct) {
                 for (Relation r : relations) {
                     if (r.getType() == RelationType.SPOUSE && (r.getFromId().equals(pid) || r.getToId().equals(pid))) {
@@ -66,28 +67,29 @@ public class TreeRenderer {
                     }
                 }
             }
-            // Reemplazo la lista por la extendida
             childToParents.put(e.getKey(), new ArrayList<>(extended));
         }
 
-        // 3) Grupos de hijos que comparten exactamente el mismo set de padres
+        /* 3 ─ agrupar hijos por conjunto exacto de padres */
         Map<Set<String>, List<NodeView>> familyGroups = new HashMap<>();
-        for (Map.Entry<String, List<String>> entry : childToParents.entrySet()) {
-            String childId = entry.getKey();
-            Set<String> parents = new TreeSet<>(entry.getValue());
+        for (Map.Entry<String, List<String>> e : childToParents.entrySet()) {
+            String childId = e.getKey();
+            Set<String> parents = new TreeSet<>(e.getValue());
             NodeView childView = find(nodes, childId);
             if (childView == null) continue;
             familyGroups.computeIfAbsent(parents, k -> new ArrayList<>()).add(childView);
         }
 
-        // 4) Dibujamos cada familia: tronco vertical desde el centro de la pareja, barra y ramitas
+        /* 4 ─ dibujar cada familia */
         shapes.setColor(Color.WHITE);
+
         for (Map.Entry<Set<String>, List<NodeView>> grp : familyGroups.entrySet()) {
+
             Set<String> parents = grp.getKey();
             List<NodeView> kids = grp.getValue();
             if (kids.isEmpty()) continue;
 
-            // A) ordeno hijos por X
+            /* A) ordenar hijos por X (⇠ cambiado) */
             Collections.sort(kids, new Comparator<NodeView>() {
                 @Override
                 public int compare(NodeView a, NodeView b) {
@@ -95,60 +97,57 @@ public class TreeRenderer {
                 }
             });
 
-            // B) calculo centro X + Y del bloque conyugal (o padre único)
-            float midX = 0, maxY = Float.NEGATIVE_INFINITY;
+            /* B) centro-X y Y máximo (centro de padres) */
+            float midX = 0f;
+            float maxYCenter = Float.NEGATIVE_INFINITY;
             for (String pid : parents) {
                 NodeView pv = find(nodes, pid);
                 if (pv != null) {
                     midX += pv.getX();
-                    maxY = Math.max(maxY, pv.getY());
+                    maxYCenter = Math.max(maxYCenter, pv.getY());
                 }
             }
             midX /= parents.size();
-            float trunkTopY = maxY;              // centro de la línea conyugal
 
-            // C) tronco vertical
-            float cy = trunkTopY - 20f;
-            shapes.line(midX, trunkTopY, midX, cy);
+            /* C) borde inferior de padres + barra de hijos */
+            float parentBottomY = maxYCenter - NodeView.RADIUS;
+            float cy = parentBottomY - 20f;   // 20 px de margen
 
-            // D) barra horizontal de hijos
-            float x0 = kids.get(0).getX();
-            float x1 = kids.get(kids.size() - 1).getX();
-            shapes.line(x0, cy, x1, cy);
-
-            // E) ramitas a cada hijo
-            for (NodeView kid : kids) {
+            /* D) tronco, barra y ramitas */
+            shapes.line(midX, parentBottomY, midX, cy);          // tronco
+            shapes.line(kids.get(0).getX(), cy, kids.get(kids.size() - 1).getX(), cy);   // barra
+            for (NodeView kid : kids) {                          // ramitas
                 shapes.line(kid.getX(), cy, kid.getX(), kid.getY() + NodeView.RADIUS + nameOffset);
             }
         }
 
-        // 5) Conexiones de cónyuges (para la línea horizontal original)
+        /* 5 ─ línea entre cónyuges */
         shapes.setColor(Color.LIGHT_GRAY);
         Set<String> drawnPair = new HashSet<>();
         for (Relation r : relations) {
             if (r.getType() != RelationType.SPOUSE) continue;
             String a = r.getFromId(), b = r.getToId();
             String key = a.compareTo(b) < 0 ? a + "-" + b : b + "-" + a;
-            if (drawnPair.contains(key)) continue;
-            drawnPair.add(key);
+            if (!drawnPair.add(key)) continue;
             NodeView na = find(nodes, a), nb = find(nodes, b);
             if (na != null && nb != null) {
                 shapes.line(na.getX() + NodeView.RADIUS, na.getY(), nb.getX() - NodeView.RADIUS, nb.getY());
             }
         }
 
-        // 6) Hermanos (si no comparten padre)
+        /* 6 ─ hermanos sin padre común */
         shapes.setColor(Color.CYAN);
         Set<String> seenSib = new HashSet<>();
         for (Relation r : relations) {
             if (r.getType() != RelationType.SIBLING) continue;
             String a = r.getFromId(), b = r.getToId();
             String key = a.compareTo(b) < 0 ? a + "-" + b : b + "-" + a;
-            if (seenSib.contains(key)) continue;
-            seenSib.add(key);
+            if (!seenSib.add(key)) continue;
             if (shareParent(relations, a, b)) continue;
+
             NodeView na = find(nodes, a), nb = find(nodes, b);
             if (na == null || nb == null) continue;
+
             float y = na.getY() + NodeView.RADIUS + 10f;
             shapes.line(na.getX(), na.getY() + NodeView.RADIUS, na.getX(), y);
             shapes.line(nb.getX(), nb.getY() + NodeView.RADIUS, nb.getX(), y);
