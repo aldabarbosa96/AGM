@@ -2,6 +2,7 @@ package com.agm.ui;
 
 import com.agm.model.FamilyTree;
 import com.agm.model.Person;
+import com.agm.model.RelationType;
 import com.agm.screens.NodeView;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
@@ -141,32 +142,43 @@ public class NodeMenuController {
 
         @Override
         public void clicked(InputEvent e, float x, float y) {
+
             editor.create(base, np -> {
                 tree.addPerson(np);
+
                 switch (kind) {
                     case CHILD:
                         tree.addParentChild(base.getPerson().getId(), np.getId());
                         break;
+
                     case PARENT:
                         tree.addParentChild(np.getId(), base.getPerson().getId());
                         break;
+
                     case SPOUSE:
+                        /* 1 · vínculo de pareja en ambos sentidos */
                         tree.addSpouse(base.getPerson().getId(), np.getId());
+
+                        /* 2 · el nuevo cónyuge adopta todos los hijos ya existentes */
+                        tree.childrenOf(base.getPerson().getId())
+                            .map(com.agm.model.Person::getId)
+                            .forEach(childId -> tree.addParentChild(np.getId(), childId));
                         break;
+
                     case SIBLING:
                         tree.addSibling(base.getPerson().getId(), np.getId());
 
-                        /* ► copia todos los padres del nodo base al nuevo hermano */
-                        for (com.agm.model.Relation r : tree.getRelations()) {
-                            if (r.getType() == com.agm.model.RelationType.PARENT && r.getToId().equals(base.getPerson().getId())) {
-                                tree.addParentChild(r.getFromId(), np.getId());
-                            }
-                        }
+                        /* copia los padres del hermano original al nuevo */
+                        tree.parentsOf(base.getPerson().getId())
+                            .map(com.agm.model.Person::getId)
+                            .forEach(parentId -> tree.addParentChild(parentId, np.getId()));
                         break;
                 }
-                nodes.add(new NodeView(np, 0, 0));
+
+                nodes.add(new com.agm.screens.NodeView(np, 0, 0));
                 relayout.run();
             });
+
             parentDlg.hide();
             close();
         }

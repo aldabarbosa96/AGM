@@ -68,12 +68,18 @@ public class FamilyTree {
         return childrenOf(child).anyMatch(p -> createsCycle(parent,p.getId()));
     }
 
-    public void addSpouse(String a,String b){
-        addRelationSafe(a,b,RelationType.SPOUSE);
+    /** Crea la relación SPOUSE en ambos sentidos A ↔ B  */
+    public void addSpouse(String a, String b) {
+        addRelationSafe(a, b, RelationType.SPOUSE);
+        addRelationSafe(b, a, RelationType.SPOUSE);   // ida y vuelta
     }
-    public void addSibling(String a,String b){
-        addRelationSafe(a,b,RelationType.SIBLING);
+
+    /** Crea la relación SIBLING en ambos sentidos A ↔ B */
+    public void addSibling(String a, String b) {
+        addRelationSafe(a, b, RelationType.SIBLING);
+        addRelationSafe(b, a, RelationType.SIBLING);  // ida y vuelta
     }
+
 
 
 }
