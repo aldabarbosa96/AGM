@@ -1,6 +1,7 @@
 package com.agm.model;
 
 import java.util.*;
+import java.util.stream.Stream;
 
 public class FamilyTree {
     private final Map<String, Person> people = new HashMap<>();
@@ -10,9 +11,13 @@ public class FamilyTree {
         people.put(p.getId(), p);
     }
 
-    public void addRelation(String parentId, String childId) {
-        relations.add(new Relation(parentId, childId));
+    public void addRelation(String fromId, String toId, RelationType type) {
+        relations.add(new Relation(fromId, toId, type));
     }
+    public void addParentChild(String parentId, String childId) {
+        addRelation(parentId, childId, RelationType.PARENT);
+    }
+
 
     public Optional<Person> getPerson(String id) {
         return Optional.ofNullable(people.get(id));
@@ -32,4 +37,5 @@ public class FamilyTree {
     public Map<String, Person> getPeople() {
         return people;
     }
+
 }

@@ -4,6 +4,7 @@ import com.agm.MainGame;
 import com.agm.model.FamilyTree;
 import com.agm.model.Person;
 import com.agm.model.Relation;
+import com.agm.model.RelationType;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputAdapter;
@@ -141,11 +142,14 @@ public class EditorScreen extends AbstractScreen {
         shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
         Map<String, List<NodeView>> groups = new HashMap<>();
         for (Relation rel : tree.getRelations()) {
-            NodeView child = findNodeById(rel.getChildId());
+            if (rel.getType() != RelationType.PARENT) continue;   // ⇦ filtra
+            NodeView child = findNodeById(rel.getToId());         //  ⇦ nuevo getter
             if (child != null) {
-                groups.computeIfAbsent(rel.getParentId(), k -> new ArrayList<>()).add(child);
+                groups.computeIfAbsent(rel.getFromId(), k -> new ArrayList<>())
+                    .add(child);
             }
         }
+
         for (Map.Entry<String, List<NodeView>> e : groups.entrySet()) {
             NodeView parent = findNodeById(e.getKey());
             List<NodeView> children = e.getValue();
@@ -273,7 +277,7 @@ public class EditorScreen extends AbstractScreen {
             public void clicked(InputEvent e, float x, float y) {
                 editNodeData(node, newPerson -> {
                     tree.addPerson(newPerson);
-                    tree.addRelation(node.getPerson().getId(), newPerson.getId());
+                    tree.addParentChild(node.getPerson().getId(), newPerson.getId());
                     nodes.add(new NodeView(newPerson, 0, 0));
                     layoutTree();
                 });
@@ -287,7 +291,7 @@ public class EditorScreen extends AbstractScreen {
             public void clicked(InputEvent e, float x, float y) {
                 editNodeData(node, newPerson -> {
                     tree.addPerson(newPerson);
-                    tree.addRelation(newPerson.getId(), node.getPerson().getId());
+                    tree.addParentChild(newPerson.getId(), node.getPerson().getId());
                     nodes.add(new NodeView(newPerson, 0, 0));
                     layoutTree();
                 });
@@ -401,13 +405,15 @@ public class EditorScreen extends AbstractScreen {
     private List<NodeView> getChildren(NodeView parent) {
         List<NodeView> result = new ArrayList<>();
         for (Relation r : tree.getRelations()) {
-            if (r.getParentId().equals(parent.getPerson().getId())) {
-                NodeView c = findNodeById(r.getChildId());
+            if (r.getType() == RelationType.PARENT &&
+                r.getFromId().equals(parent.getPerson().getId())) {
+                NodeView c = findNodeById(r.getToId());
                 if (c != null) result.add(c);
             }
         }
         return result;
     }
+
 
     private float computeSubtreeWidth(NodeView node, Map<String, Float> widthMap) {
         List<NodeView> children = getChildren(node);
