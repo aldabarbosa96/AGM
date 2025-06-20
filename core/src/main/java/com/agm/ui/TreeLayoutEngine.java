@@ -22,7 +22,7 @@ public class TreeLayoutEngine {
 
     public void layoutAll() {
         if (nodes.isEmpty()) return;
-        // Igual que antes: solo el primer nodo como raíz
+
         float vw = stage.getViewport().getWorldWidth();
         float vh = stage.getViewport().getWorldHeight();
         NodeView root = nodes.get(0);
@@ -33,7 +33,11 @@ public class TreeLayoutEngine {
         float startX = vw / 2f;
         float startY = vh / 2f;
         layoutSubtree(root, startX, startY, widthMap);
+
+        /* ─── ajuste horizontal de cónyuges una vez colocado el árbol ─── */
+        placeSpouses();
     }
+
 
     private float computeWidth(NodeView node, Map<String, Float> wmap) {
         List<NodeView> children = getChildren(node);
@@ -82,4 +86,31 @@ public class TreeLayoutEngine {
         }
         return out;
     }
+
+    /** Coloca a los cónyuges uno al lado del otro en la misma fila */
+    private void placeSpouses() {
+        float gap = NodeView.RADIUS * 2 + 50f;           // distancia mínima
+
+        for (Relation r : tree.getRelations()) {
+            if (r.getType() != RelationType.SPOUSE) continue;
+
+            NodeView a = findNode(r.getFromId());
+            NodeView b = findNode(r.getToId());
+            if (a == null || b == null) continue;
+
+            /* Si ya están cerca, no tocamos nada */
+            if (Math.abs(a.getY() - b.getY()) < 1f &&
+                Math.abs(a.getX() - b.getX()) < gap * 0.9f) continue;
+
+            /* Colocamos b a la derecha de a */
+            b.setPosition(a.getX() + gap, a.getY());
+        }
+    }
+
+    private NodeView findNode(String id) {
+        for (NodeView n : nodes)
+            if (n.getPerson().getId().equals(id)) return n;
+        return null;
+    }
+
 }

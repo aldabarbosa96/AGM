@@ -41,31 +41,50 @@ public class TreeRenderer {
 
     private void drawConnections(List<NodeView> nodes, List<Relation> relations) {
         shapes.begin(ShapeRenderer.ShapeType.Line);
-        Map<String,List<NodeView>> groups = new HashMap<>();
+
+        /* ----------- líneas padre-hijo (ya existentes) ----------- */
+        Map<String, List<NodeView>> groups = new HashMap<>();
         for (Relation r : relations) {
             if (r.getType() != RelationType.PARENT) continue;
-            String pid = r.getFromId(), cid = r.getToId();
-            NodeView child = find(nodes, cid);
-            if (child != null) groups.computeIfAbsent(pid, k->new java.util.ArrayList<>()).add(child);
+            NodeView child = find(nodes, r.getToId());
+            if (child != null)
+                groups.computeIfAbsent(r.getFromId(), k -> new java.util.ArrayList<>()).add(child);
         }
-        for (Map.Entry<String,List<NodeView>> e : groups.entrySet()) {
+        for (Map.Entry<String, List<NodeView>> e : groups.entrySet()) {
             NodeView parent = find(nodes, e.getKey());
             List<NodeView> kids = e.getValue();
-            if (parent==null || kids.isEmpty()) continue;
+            if (parent == null || kids.isEmpty()) continue;
 
             float px = parent.getX(), py = parent.getY();
             float cy = py - NodeView.RADIUS - 20;
             shapes.setColor(Color.WHITE);
             shapes.line(px, py - NodeView.RADIUS, px, cy);
+
             float fx = kids.get(0).getX();
-            float lx = kids.get(kids.size()-1).getX();
+            float lx = kids.get(kids.size() - 1).getX();
             shapes.line(fx, cy, lx, cy);
+
             for (NodeView c : kids) {
                 shapes.line(c.getX(), cy, c.getX(), c.getY() + NodeView.RADIUS + nameOffset);
             }
         }
+
+        /* ----------- líneas cónyuge ↔ cónyuge ----------- */
+        shapes.setColor(Color.LIGHT_GRAY);
+        for (Relation r : relations) {
+            if (r.getType() != RelationType.SPOUSE) continue;
+            NodeView a = find(nodes, r.getFromId());
+            NodeView b = find(nodes, r.getToId());
+            if (a != null && b != null) {
+                shapes.line(a.getX() + NodeView.RADIUS, a.getY(), b.getX() - NodeView.RADIUS, b.getY());
+            }
+        }
+
+        /* (opcional) podrías añadir aquí conexiones de hermanos si lo deseas */
+
         shapes.end();
     }
+
 
     private void drawNodes(List<NodeView> nodes, NodeView selected) {
         shapes.begin(ShapeRenderer.ShapeType.Filled);

@@ -155,6 +155,13 @@ public class NodeMenuController {
                         break;
                     case SIBLING:
                         tree.addSibling(base.getPerson().getId(), np.getId());
+
+                        /* ► copia todos los padres del nodo base al nuevo hermano */
+                        for (com.agm.model.Relation r : tree.getRelations()) {
+                            if (r.getType() == com.agm.model.RelationType.PARENT && r.getToId().equals(base.getPerson().getId())) {
+                                tree.addParentChild(r.getFromId(), np.getId());
+                            }
+                        }
                         break;
                 }
                 nodes.add(new NodeView(np, 0, 0));
@@ -163,6 +170,7 @@ public class NodeMenuController {
             parentDlg.hide();
             close();
         }
+
     }
 
     /* ------------------------------------------------------------------ */
