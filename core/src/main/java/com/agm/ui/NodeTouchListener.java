@@ -1,4 +1,3 @@
-// NodeTouchListener.java
 package com.agm.ui;
 
 import com.badlogic.gdx.InputAdapter;
@@ -37,10 +36,7 @@ public class NodeTouchListener extends InputAdapter {
             }
         }
 
-        /* Notificamos siempre: si no hay nodo devolvemos null */
         callback.accept(hit);
-
-        /* Solo consumimos el evento cuando realmente se pulsó un nodo */
         return hit != null;
     }
 

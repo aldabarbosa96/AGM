@@ -53,33 +53,44 @@ public class FamilyTree {
     }
 
     public Stream<Person> siblingsOf(String id) {
-        // hermanos = tienen al menos un padre en común
+        // 1 ─ Hermanos por padres en común
         Set<String> commonParents = parentsOf(id).map(Person::getId).collect(Collectors.toSet());
-        return relations.stream().filter(r -> r.getType() == RelationType.PARENT && commonParents.contains(r.getFromId()) && !r.getToId().equals(id)).map(r -> people.get(r.getToId())).distinct();
+
+        Stream<String> viaParents = relations.stream().filter(r -> r.getType() == RelationType.PARENT && commonParents.contains(r.getFromId()) && !r.getToId().equals(id)).map(Relation::getToId);
+
+        // 2 ─ Hermanos por relación SIBLING explícita
+        Stream<String> viaSiblingRel = relations.stream().filter(r -> r.getType() == RelationType.SIBLING && (r.getFromId().equals(id) || r.getToId().equals(id))).map(r -> r.getFromId().equals(id) ? r.getToId() : r.getFromId());
+
+        // 3 ─ Unimos ambos flujos y devolvemos Person únicos
+        return Stream.concat(viaParents, viaSiblingRel).distinct().map(people::get);
     }
 
-    public void addRelationSafe(String from, String to, RelationType t){
-        if(t==RelationType.PARENT && createsCycle(from,to))
+    public void addRelationSafe(String from, String to, RelationType t) {
+        if (t == RelationType.PARENT && createsCycle(from, to))
             throw new IllegalArgumentException("Ciclo genealógico");
-        relations.add(new Relation(from,to,t));
-    }
-    private boolean createsCycle(String parent,String child){
-        if(parent.equals(child)) return true;
-        return childrenOf(child).anyMatch(p -> createsCycle(parent,p.getId()));
+        relations.add(new Relation(from, to, t));
     }
 
-    /** Crea la relación SPOUSE en ambos sentidos A ↔ B  */
+    private boolean createsCycle(String parent, String child) {
+        if (parent.equals(child)) return true;
+        return childrenOf(child).anyMatch(p -> createsCycle(parent, p.getId()));
+    }
+
+    /**
+     * Crea la relación SPOUSE en ambos sentidos A ↔ B
+     */
     public void addSpouse(String a, String b) {
         addRelationSafe(a, b, RelationType.SPOUSE);
         addRelationSafe(b, a, RelationType.SPOUSE);   // ida y vuelta
     }
 
-    /** Crea la relación SIBLING en ambos sentidos A ↔ B */
+    /**
+     * Crea la relación SIBLING en ambos sentidos A ↔ B
+     */
     public void addSibling(String a, String b) {
         addRelationSafe(a, b, RelationType.SIBLING);
         addRelationSafe(b, a, RelationType.SIBLING);  // ida y vuelta
     }
-
 
 
 }
