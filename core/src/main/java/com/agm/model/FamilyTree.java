@@ -55,41 +55,39 @@ public class FamilyTree {
     }
 
     public Stream<Person> siblingsOf(String id) {
-        return relations.stream().filter(r -> r.getType() == RelationType.SIBLING && r.getFromId().equals(id)).map(r -> people.get(r.getToId())).filter(Objects::nonNull);
+        return relations.stream().filter(r -> r.getType() == RelationType.SIBLING).map(r -> {
+            if (r.getFromId().equals(id)) return people.get(r.getToId());
+            if (r.getToId().equals(id)) return people.get(r.getFromId());
+            return null;
+        }).filter(Objects::nonNull);
     }
 
-    /* ───────── creación de vínculos ───────── */
 
-    /**
-     * Añade un vínculo padre→hijo evitando ciclos y duplicados
-     */
-    /**
-     * Añade el vínculo padre → hijo evitando ciclos y duplicados.
-     * ▸ Si el hijo tiene hermanos, el nuevo padre se enlaza con todos ellos.
-     * ▸ Si el padre tiene cónyuge(s), éstos pasan a ser también progenitores
-     *   del hijo (y, por herencia, de los hermanos).
-     */
     public void addParentChild(String parentId, String childId) {
-
-        /* 0 · seguridad: nada de ciclos genealógicos */
         if (createsCycle(parentId, childId))
             throw new IllegalArgumentException("Crearía un ciclo genealógico");
 
-        /* 1 · vínculo principal (se evita duplicado internamente) */
-        link(parentId, childId, RelationType.PARENT);
-
-        /* 2 · PROPAGAR A HERMANOS ———————— */
-        siblingsOf(childId)
-            .map(Person::getId)
-            .filter(sibId -> !hasRelation(parentId, sibId, RelationType.PARENT))
-            .forEach(sibId -> link(parentId, sibId, RelationType.PARENT));
-
-        /* 3 · PROPAGAR A CÓNYUGE(S) DEL PADRE ———— */
+        Set<String> allParents = new HashSet<>();
+        allParents.add(parentId);
         spousesOf(parentId)
             .map(Person::getId)
-            .filter(spId -> !hasRelation(spId, childId, RelationType.PARENT))
-            .forEach(spId -> link(spId, childId, RelationType.PARENT));
+            .forEach(allParents::add);
+
+
+        List<String> targets = Stream.concat(
+                Stream.of(childId),
+                siblingsOf(childId).map(Person::getId)
+            )
+            .distinct()
+            .collect(Collectors.toList());
+
+        for (String p : allParents) {
+            for (String t : targets) {
+                link(p, t, RelationType.PARENT);
+            }
+        }
     }
+
 
     /**
      * Añade matrimonio bidireccional evitando duplicados

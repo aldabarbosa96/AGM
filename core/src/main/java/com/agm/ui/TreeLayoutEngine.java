@@ -69,8 +69,6 @@ public class TreeLayoutEngine {
             currentX += w + gapRoots;
         }
 
-        /* 4 ─ ajustes finos */
-        placeSpouses();
         placeSiblingRoots();
     }
 
@@ -98,51 +96,50 @@ public class TreeLayoutEngine {
         return finalW;
     }
 
-    private void layoutSubtree(NodeView n, float x, float y, Map<String, Float> map) {
-        n.setPosition(x, y);
+    private void layoutSubtree(NodeView n, float x, float y, Map<String, Float> wmap) {
+        NodeView spouse = getSpouse(n);
 
+        // 1) Posicionamos la pareja (o el nodo solo) como antes
+        float blockWidth = wmap.get(n.getPerson().getId());
+        if (spouse != null) {
+            float half = blockWidth / 2f;
+            float xLeft = x - half + NODE_W / 2f;
+            float xRight = x + half - NODE_W / 2f;
+            // decidimos quién es “izquierda” y “derecha” por orden de ID
+            if (n.getPerson().getId().compareTo(spouse.getPerson().getId()) < 0) {
+                n.setPosition(xLeft, y);
+                spouse.setPosition(xRight, y);
+            } else {
+                spouse.setPosition(xLeft, y);
+                n.setPosition(xRight, y);
+            }
+        } else {
+            n.setPosition(x, y);
+        }
+
+        // 2) Solo el “primer” cónyuge (ID menor), o nodos sin pareja, reparten hijos
+        if (spouse != null && n.getPerson().getId().compareTo(spouse.getPerson().getId()) > 0) {
+            // este es el “segundo” de la pareja: ya hemos repartido hijos con el otro
+            return;
+        }
+
+        // 3) Distribuimos hijos TODOS a partir de x (que es el centro del bloque pareja)
         List<NodeView> children = getChildren(n);
         if (children.isEmpty()) return;
 
-        float subtreeW = map.get(n.getPerson().getId());
+        // anchura total ya calculada
+        float subtreeW = wmap.get(n.getPerson().getId());
         float startX = x - subtreeW / 2f;
         float vgap = NodeView.RADIUS * 2 + 100f;
 
         for (NodeView c : children) {
-            float cw = map.get(c.getPerson().getId());
+            float cw = wmap.get(c.getPerson().getId());
             float cx = startX + cw / 2f;
-            layoutSubtree(c, cx, y - vgap, map);
+            layoutSubtree(c, cx, y - vgap, wmap);
             startX += cw;
         }
     }
 
-    /* ─────────────────────  Ajuste de parejas  ───────────────────────── */
-
-    /**
-     * Bloque conyugal: se juntan mucho (PARTNER_GAP)
-     */
-    private void placeSpouses() {
-        Set<String> done = new HashSet<>();
-
-        for (Relation r : tree.getRelations()) {
-            if (r.getType() != RelationType.SPOUSE) continue;
-
-            String aId = r.getFromId(), bId = r.getToId();
-            String key = aId.compareTo(bId) < 0 ? aId + '-' + bId : bId + '-' + aId;
-            if (done.contains(key)) continue;
-            done.add(key);
-
-            NodeView a = findNode(aId);
-            NodeView b = findNode(bId);
-            if (a == null || b == null) continue;
-
-            float y = Math.max(a.getY(), b.getY());
-            a.setPosition(a.getX(), y);
-            b.setPosition(a.getX() + PARTNER_GAP + NODE_W, y);
-        }
-    }
-
-    /* ───────── Hermanos sin padre: separación larga en la misma fila ── */
 
     // ──────────────────────────────────────────────────────────────
 // 3. Sustituye COMPLETAMENTE este método
@@ -195,10 +192,7 @@ public class TreeLayoutEngine {
 // ──────────────────────────────────────────────────────────────
     private List<NodeView> findRoots() {
         // hijos directos de alguien → NO son raíz
-        Set<String> childIds = tree.getRelations().stream()
-            .filter(r -> r.getType() == RelationType.PARENT)
-            .map(Relation::getToId)
-            .collect(Collectors.toSet());
+        Set<String> childIds = tree.getRelations().stream().filter(r -> r.getType() == RelationType.PARENT).map(Relation::getToId).collect(Collectors.toSet());
 
         Set<String> skip = new HashSet<>();
         for (Relation r : tree.getRelations()) {
@@ -209,15 +203,14 @@ public class TreeLayoutEngine {
             boolean bIsRoot = !childIds.contains(b);
             if (aIsRoot && bIsRoot) {
                 if (a.compareTo(b) < 0) skip.add(b);   // conserva el “menor”
-                else                     skip.add(a);
+                else skip.add(a);
             }
         }
 
         List<NodeView> roots = new ArrayList<>();
         for (NodeView n : nodes) {
             String id = n.getPerson().getId();
-            if (!childIds.contains(id) && !skip.contains(id))
-                roots.add(n);
+            if (!childIds.contains(id) && !skip.contains(id)) roots.add(n);
         }
         return roots;
     }

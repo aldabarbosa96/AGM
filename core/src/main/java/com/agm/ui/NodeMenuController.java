@@ -142,7 +142,6 @@ public class NodeMenuController {
 
         @Override
         public void clicked(InputEvent e, float x, float y) {
-
             editor.create(base, np -> {
                 tree.addPerson(np);
 
@@ -156,11 +155,16 @@ public class NodeMenuController {
                         break;
 
                     case SPOUSE:
-                        /* 1 · vínculo de pareja en ambos sentidos */
+                        // 1 · vínculo de pareja en ambos sentidos
                         tree.addSpouse(base.getPerson().getId(), np.getId());
 
-                        /* 2 · el nuevo cónyuge adopta todos los hijos ya existentes */
-                        tree.childrenOf(base.getPerson().getId()).map(com.agm.model.Person::getId).forEach(childId -> tree.addParentChild(np.getId(), childId));
+                        // 2 · “repasamos” cada hijo del base; addParentChild propagará
+                        //    también esa relación al nuevo cónyuge
+                        tree.childrenOf(base.getPerson().getId())
+                            .map(Person::getId)
+                            .forEach(childId ->
+                                tree.addParentChild(base.getPerson().getId(), childId)
+                            );
                         break;
 
                     case SIBLING:
@@ -168,7 +172,7 @@ public class NodeMenuController {
                         break;
                 }
 
-                nodes.add(new com.agm.screens.NodeView(np, 0, 0));
+                nodes.add(new NodeView(np, 0, 0));
                 relayout.run();
             });
 
