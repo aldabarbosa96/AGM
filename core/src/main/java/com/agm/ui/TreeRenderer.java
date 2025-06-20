@@ -12,9 +12,11 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Set;
 
 public class TreeRenderer {
     private final ShapeRenderer shapes = new ShapeRenderer();
@@ -39,22 +41,20 @@ public class TreeRenderer {
         drawLabels(nodes);
     }
 
-    private void drawConnections(List<NodeView> nodes,
-                                 List<Relation> relations) {
+    private void drawConnections(List<NodeView> nodes, List<Relation> relations) {
 
         shapes.begin(ShapeRenderer.ShapeType.Line);
 
         /* ────────── PADRE ↧ HIJO ────────── */
-        Map<String,List<NodeView>> groups = new HashMap<>();
+        Map<String, List<NodeView>> groups = new HashMap<>();
         for (Relation r : relations) {
             if (r.getType() != RelationType.PARENT) continue;
             NodeView child = find(nodes, r.getToId());
             if (child != null)
-                groups.computeIfAbsent(r.getFromId(), k -> new java.util.ArrayList<>())
-                    .add(child);
+                groups.computeIfAbsent(r.getFromId(), k -> new java.util.ArrayList<>()).add(child);
         }
         shapes.setColor(Color.WHITE);
-        for (Map.Entry<String,List<NodeView>> e : groups.entrySet()) {
+        for (Map.Entry<String, List<NodeView>> e : groups.entrySet()) {
             NodeView parent = find(nodes, e.getKey());
             List<NodeView> kids = e.getValue();
             if (parent == null || kids.isEmpty()) continue;
@@ -63,23 +63,27 @@ public class TreeRenderer {
             float cy = py - NodeView.RADIUS - 20;
 
             shapes.line(px, py - NodeView.RADIUS, px, cy);          // tronco
-            shapes.line(kids.get(0).getX(), cy,
-                kids.get(kids.size()-1).getX(), cy);         // barra
+            shapes.line(kids.get(0).getX(), cy, kids.get(kids.size() - 1).getX(), cy);         // barra
             for (NodeView c : kids)                                  // ramas
-                shapes.line(c.getX(), cy,
-                    c.getX(), c.getY() + NodeView.RADIUS + nameOffset);
+                shapes.line(c.getX(), cy, c.getX(), c.getY() + NodeView.RADIUS + nameOffset);
         }
 
         /* ────────── CÓNYUGE ↔ CÓNYUGE ────────── */
         shapes.setColor(Color.LIGHT_GRAY);
+        Set<String> drawn = new HashSet<>();
         for (Relation r : relations) {
             if (r.getType() != RelationType.SPOUSE) continue;
-            NodeView a = find(nodes, r.getFromId());
-            NodeView b = find(nodes, r.getToId());
-            if (a != null && b != null)
-                shapes.line(a.getX() + NodeView.RADIUS, a.getY(),
-                    b.getX() - NodeView.RADIUS, b.getY());
+            String aId = r.getFromId(), bId = r.getToId();
+            String key = aId.compareTo(bId) < 0 ? aId + "-" + bId : bId + "-" + aId;
+            if (drawn.contains(key)) continue;
+            drawn.add(key);
+            NodeView a = find(nodes, aId);
+            NodeView b = find(nodes, bId);
+            if (a != null && b != null) {
+                shapes.line(a.getX() + NodeView.RADIUS, a.getY(), b.getX() - NodeView.RADIUS, b.getY());
+            }
         }
+
 
     /* ────────── HERMANO ──────────
        Solo si NO comparten padre (ya representados arriba) */
@@ -116,9 +120,7 @@ public class TreeRenderer {
             if (r.getToId().equals(a)) {
                 String p = r.getFromId();
                 for (Relation r2 : rels)
-                    if (r2.getType() == RelationType.PARENT &&
-                        r2.getFromId().equals(p) &&
-                        r2.getToId().equals(b))
+                    if (r2.getType() == RelationType.PARENT && r2.getFromId().equals(p) && r2.getToId().equals(b))
                         return true;
             }
         }

@@ -52,19 +52,6 @@ public class FamilyTree {
         return relations.stream().filter(r -> r.getType() == RelationType.SPOUSE && (r.getFromId().equals(id) || r.getToId().equals(id))).map(r -> people.get(r.getFromId().equals(id) ? r.getToId() : r.getFromId()));
     }
 
-    public Stream<Person> siblingsOf(String id) {
-        // 1 ─ Hermanos por padres en común
-        Set<String> commonParents = parentsOf(id).map(Person::getId).collect(Collectors.toSet());
-
-        Stream<String> viaParents = relations.stream().filter(r -> r.getType() == RelationType.PARENT && commonParents.contains(r.getFromId()) && !r.getToId().equals(id)).map(Relation::getToId);
-
-        // 2 ─ Hermanos por relación SIBLING explícita
-        Stream<String> viaSiblingRel = relations.stream().filter(r -> r.getType() == RelationType.SIBLING && (r.getFromId().equals(id) || r.getToId().equals(id))).map(r -> r.getFromId().equals(id) ? r.getToId() : r.getFromId());
-
-        // 3 ─ Unimos ambos flujos y devolvemos Person únicos
-        return Stream.concat(viaParents, viaSiblingRel).distinct().map(people::get);
-    }
-
     public void addRelationSafe(String from, String to, RelationType t) {
         if (t == RelationType.PARENT && createsCycle(from, to))
             throw new IllegalArgumentException("Ciclo genealógico");
@@ -76,20 +63,23 @@ public class FamilyTree {
         return childrenOf(child).anyMatch(p -> createsCycle(parent, p.getId()));
     }
 
-    /**
-     * Crea la relación SPOUSE en ambos sentidos A ↔ B
-     */
-    public void addSpouse(String a, String b) {
-        addRelationSafe(a, b, RelationType.SPOUSE);
-        addRelationSafe(b, a, RelationType.SPOUSE);   // ida y vuelta
+    private boolean relationExists(String from, String to, RelationType t) {
+        return relations.stream().anyMatch(r -> r.getType() == t && r.getFromId().equals(from) && r.getToId().equals(to));
     }
 
-    /**
-     * Crea la relación SIBLING en ambos sentidos A ↔ B
-     */
+    public void addSpouse(String a, String b) {
+        // Si ya está creado A<->B, no hacemos nada
+        if (relationExists(a, b, RelationType.SPOUSE) || relationExists(b, a, RelationType.SPOUSE))
+            return;
+        addRelationSafe(a, b, RelationType.SPOUSE);
+        addRelationSafe(b, a, RelationType.SPOUSE);
+    }
+
     public void addSibling(String a, String b) {
+        if (relationExists(a, b, RelationType.SIBLING) || relationExists(b, a, RelationType.SIBLING))
+            return;
         addRelationSafe(a, b, RelationType.SIBLING);
-        addRelationSafe(b, a, RelationType.SIBLING);  // ida y vuelta
+        addRelationSafe(b, a, RelationType.SIBLING);
     }
 
 
