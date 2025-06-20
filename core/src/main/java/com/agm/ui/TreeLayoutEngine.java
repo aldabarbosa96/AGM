@@ -24,19 +24,21 @@ public class TreeLayoutEngine {
         if (nodes.isEmpty()) return;
 
         float vw = stage.getViewport().getWorldWidth();
-        float vh = stage.getViewport().getWorldHeight();
-        NodeView root = nodes.get(0);
+        float vh  = stage.getViewport().getWorldHeight();
 
-        Map<String, Float> widthMap = new HashMap<>();
+        NodeView root = nodes.get(0);               // primer nodo = raíz principal
+
+        Map<String,Float> widthMap = new HashMap<>();
         computeWidth(root, widthMap);
 
         float startX = vw / 2f;
         float startY = vh / 2f;
         layoutSubtree(root, startX, startY, widthMap);
 
-        /* ─── ajuste horizontal de cónyuges una vez colocado el árbol ─── */
-        placeSpouses();
+        placeSpouses();      // ya existente
+        placeSiblings();     // ← NUEVO ajuste horizontal de hermanos
     }
+
 
 
     private float computeWidth(NodeView node, Map<String, Float> wmap) {
@@ -106,6 +108,48 @@ public class TreeLayoutEngine {
             b.setPosition(a.getX() + gap, a.getY());
         }
     }
+    /** Agrupa hermanos SIN padres y los coloca juntos en la misma fila. */
+    private void placeSiblings() {
+        float gap = NodeView.RADIUS * 2 + 50f;          // distancia mínima
+        Set<String> done = new HashSet<>();
+
+        for (Relation r : tree.getRelations()) {
+            if (r.getType() != RelationType.SIBLING) continue;
+
+            String aId = r.getFromId(), bId = r.getToId();
+            String key = aId.compareTo(bId) < 0 ? aId + "-" + bId : bId + "-" + aId;
+            if (done.contains(key)) continue;
+            done.add(key);
+
+            /* si ya comparten un padre, su posición la decide el padre */
+            if (haveCommonParent(aId, bId)) continue;
+
+            NodeView a = findNode(aId), b = findNode(bId);
+            if (a == null || b == null) continue;
+
+            /* alineamos Y y ponemos b a la derecha de a */
+            b.setPosition(a.getX() + gap, a.getY());
+        }
+    }
+
+    private boolean haveCommonParent(String x, String y) {
+        for (Relation r : tree.getRelations()) {
+            if (r.getType() != RelationType.PARENT) continue;
+            String p = r.getFromId();
+            if (isChildOf(p, x) && isChildOf(p, y)) return true;
+        }
+        return false;
+    }
+
+    private boolean isChildOf(String parent, String child) {
+        for (Relation r : tree.getRelations())
+            if (r.getType() == RelationType.PARENT &&
+                r.getFromId().equals(parent) &&
+                r.getToId().equals(child))
+                return true;
+        return false;
+    }
+
 
     private NodeView findNode(String id) {
         for (NodeView n : nodes)

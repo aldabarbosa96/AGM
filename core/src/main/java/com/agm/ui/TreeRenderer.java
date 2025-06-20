@@ -39,52 +39,91 @@ public class TreeRenderer {
         drawLabels(nodes);
     }
 
-    private void drawConnections(List<NodeView> nodes, List<Relation> relations) {
+    private void drawConnections(List<NodeView> nodes,
+                                 List<Relation> relations) {
+
         shapes.begin(ShapeRenderer.ShapeType.Line);
 
-        /* ----------- líneas padre-hijo (ya existentes) ----------- */
-        Map<String, List<NodeView>> groups = new HashMap<>();
+        /* ────────── PADRE ↧ HIJO ────────── */
+        Map<String,List<NodeView>> groups = new HashMap<>();
         for (Relation r : relations) {
             if (r.getType() != RelationType.PARENT) continue;
             NodeView child = find(nodes, r.getToId());
             if (child != null)
-                groups.computeIfAbsent(r.getFromId(), k -> new java.util.ArrayList<>()).add(child);
+                groups.computeIfAbsent(r.getFromId(), k -> new java.util.ArrayList<>())
+                    .add(child);
         }
-        for (Map.Entry<String, List<NodeView>> e : groups.entrySet()) {
+        shapes.setColor(Color.WHITE);
+        for (Map.Entry<String,List<NodeView>> e : groups.entrySet()) {
             NodeView parent = find(nodes, e.getKey());
             List<NodeView> kids = e.getValue();
             if (parent == null || kids.isEmpty()) continue;
 
             float px = parent.getX(), py = parent.getY();
             float cy = py - NodeView.RADIUS - 20;
-            shapes.setColor(Color.WHITE);
-            shapes.line(px, py - NodeView.RADIUS, px, cy);
 
-            float fx = kids.get(0).getX();
-            float lx = kids.get(kids.size() - 1).getX();
-            shapes.line(fx, cy, lx, cy);
-
-            for (NodeView c : kids) {
-                shapes.line(c.getX(), cy, c.getX(), c.getY() + NodeView.RADIUS + nameOffset);
-            }
+            shapes.line(px, py - NodeView.RADIUS, px, cy);          // tronco
+            shapes.line(kids.get(0).getX(), cy,
+                kids.get(kids.size()-1).getX(), cy);         // barra
+            for (NodeView c : kids)                                  // ramas
+                shapes.line(c.getX(), cy,
+                    c.getX(), c.getY() + NodeView.RADIUS + nameOffset);
         }
 
-        /* ----------- líneas cónyuge ↔ cónyuge ----------- */
+        /* ────────── CÓNYUGE ↔ CÓNYUGE ────────── */
         shapes.setColor(Color.LIGHT_GRAY);
         for (Relation r : relations) {
             if (r.getType() != RelationType.SPOUSE) continue;
             NodeView a = find(nodes, r.getFromId());
             NodeView b = find(nodes, r.getToId());
-            if (a != null && b != null) {
-                shapes.line(a.getX() + NodeView.RADIUS, a.getY(), b.getX() - NodeView.RADIUS, b.getY());
-            }
+            if (a != null && b != null)
+                shapes.line(a.getX() + NodeView.RADIUS, a.getY(),
+                    b.getX() - NodeView.RADIUS, b.getY());
         }
 
-        /* (opcional) podrías añadir aquí conexiones de hermanos si lo deseas */
+    /* ────────── HERMANO ──────────
+       Solo si NO comparten padre (ya representados arriba) */
+        shapes.setColor(Color.CYAN);
+        java.util.Set<String> done = new java.util.HashSet<>();
+        for (Relation r : relations) {
+            if (r.getType() != RelationType.SIBLING) continue;
+
+            String aId = r.getFromId(), bId = r.getToId();
+            String key = aId.compareTo(bId) < 0 ? aId + "-" + bId : bId + "-" + aId;
+            if (done.contains(key)) continue;
+            done.add(key);
+
+            if (shareParent(relations, aId, bId)) continue;
+
+            NodeView a = find(nodes, aId);
+            NodeView b = find(nodes, bId);
+            if (a == null || b == null) continue;
+
+            float y = a.getY() + NodeView.RADIUS + 10f;      // barra sobre nodos
+            shapes.line(a.getX(), a.getY() + NodeView.RADIUS, a.getX(), y);
+            shapes.line(b.getX(), b.getY() + NodeView.RADIUS, b.getX(), y);
+            shapes.line(a.getX(), y, b.getX(), y);
+        }
 
         shapes.end();
     }
 
+    /* Helpers */
+
+    private boolean shareParent(List<Relation> rels, String a, String b) {
+        for (Relation r : rels) {
+            if (r.getType() != RelationType.PARENT) continue;
+            if (r.getToId().equals(a)) {
+                String p = r.getFromId();
+                for (Relation r2 : rels)
+                    if (r2.getType() == RelationType.PARENT &&
+                        r2.getFromId().equals(p) &&
+                        r2.getToId().equals(b))
+                        return true;
+            }
+        }
+        return false;
+    }
 
     private void drawNodes(List<NodeView> nodes, NodeView selected) {
         shapes.begin(ShapeRenderer.ShapeType.Filled);
