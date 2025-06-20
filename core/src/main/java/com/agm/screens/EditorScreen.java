@@ -8,6 +8,7 @@ import com.agm.ui.NodeMenuController;
 import com.agm.ui.TreeInputController;
 import com.agm.ui.TreeLayoutEngine;
 import com.agm.ui.TreeRenderer;
+import com.agm.ui.UIResources;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
@@ -49,7 +50,7 @@ public class EditorScreen extends AbstractScreen {
         super.show();
 
         /* 1. Skin y cámara */
-        skin = createBasicSkin();
+        skin = UIResources.skin();
         OrthographicCamera cam = (OrthographicCamera) stage.getCamera();
         cam.zoom = 0.7f;
         cam.update();
@@ -109,47 +110,5 @@ public class EditorScreen extends AbstractScreen {
         renderer.dispose();
         menuController.dispose();
         skin.dispose();
-    }
-
-    /* ---------- Skin básica ---------- */
-    private Skin createBasicSkin() {
-        Skin skin = new Skin();
-
-        BitmapFont f = new BitmapFont();
-        f.getData().setScale(1.2f);
-        skin.add("default-font", f);
-
-        Pixmap pix = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
-        pix.setColor(Color.WHITE);
-        pix.fill();
-        skin.add("white", new Texture(pix));
-        pix.dispose();
-
-        skin.add("default", new Label.LabelStyle(f, Color.WHITE));
-
-        Window.WindowStyle win = new Window.WindowStyle();
-        win.titleFont = f;
-        win.titleFontColor = Color.WHITE;
-        win.background = skin.newDrawable("white", Color.DARK_GRAY);
-        skin.add("default", win);
-
-        TextButton.TextButtonStyle btn = new TextButton.TextButtonStyle();
-        btn.font = f;
-        btn.up = skin.newDrawable("white", Color.DARK_GRAY);
-        btn.down = skin.newDrawable("white", Color.GRAY);
-        btn.over = skin.newDrawable("white", Color.LIGHT_GRAY);
-        skin.add("default", btn);
-
-        BitmapFont bigF = new BitmapFont();
-        bigF.getData().setScale(1.5f);
-        skin.add("big-font", bigF);
-        TextButton.TextButtonStyle big = new TextButton.TextButtonStyle();
-        big.font = bigF;
-        big.up = skin.newDrawable("white", Color.DARK_GRAY);
-        big.down = skin.newDrawable("white", Color.GRAY);
-        big.over = skin.newDrawable("white", Color.LIGHT_GRAY);
-        skin.add("big", big);
-
-        return skin;
     }
 }

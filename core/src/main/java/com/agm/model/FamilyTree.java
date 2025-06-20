@@ -1,6 +1,7 @@
 package com.agm.model;
 
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class FamilyTree {
@@ -86,12 +87,24 @@ public class FamilyTree {
         link(b, a, RelationType.SIBLING);
 
         // 2 · heredar padres
-        parentsOf(a).map(Person::getId).forEach(p -> addParentChild(p, b));
-        parentsOf(b).map(Person::getId).forEach(p -> addParentChild(p, a));
+        List<String> parentsA = parentsOf(a).map(Person::getId).collect(Collectors.toList());
+        List<String> parentsB = parentsOf(b).map(Person::getId).collect(Collectors.toList());
 
-        // 3 · transitividad
-        siblingsOf(a).map(Person::getId).forEach(s -> link(s, b, RelationType.SIBLING));
-        siblingsOf(b).map(Person::getId).forEach(s -> link(s, a, RelationType.SIBLING));
+        for (String p : parentsA) addParentChild(p, b);
+        for (String p : parentsB) addParentChild(p, a);
+
+        // 3 · transitividad  ──────────────
+        List<String> sibsA = siblingsOf(a).map(Person::getId).collect(Collectors.toList());
+        List<String> sibsB = siblingsOf(b).map(Person::getId).collect(Collectors.toList());
+
+        for (String s : sibsA) {
+            link(s, b, RelationType.SIBLING);
+            link(b, s, RelationType.SIBLING);
+        }
+        for (String s : sibsB) {
+            link(s, a, RelationType.SIBLING);
+            link(a, s, RelationType.SIBLING);
+        }
     }
 
     /* ───────── utilidades internas ───────── */
